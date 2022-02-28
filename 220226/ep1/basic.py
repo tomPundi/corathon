@@ -1,6 +1,5 @@
 
 # CONSTANT
-
 DIGITS = '0123456789'
 
 # ERROR
@@ -66,8 +65,7 @@ class Token:
 
 # LEXER
 class Lexer:
-    # 注意这里修改了顺序
-    def __init__(self, fileName, text):
+    def __init__(self, text, fileName):
         self.fileName = fileName
         self.text = text
         self.pos = Position(-1, 0, -1, fileName, text)
@@ -77,7 +75,6 @@ class Lexer:
     def advance(self):
         self.pos.advance(self.current_char)
         self.current_char = self.text[self.pos.idx] if self.pos.idx < len(self.text) else None
-        # print("self.current_char now", self.current_char)
 
     def make_tokens(self):
         tokens = []
@@ -85,11 +82,9 @@ class Lexer:
             if self.current_char in ' \t':
                 self.advance()
             elif self.current_char in DIGITS:
-                print("self.current_char", self.current_char)
-                print("tokens", tokens)
+                # a = self.make_numbers()
+                # print("a", a)
                 tokens.append(self.make_numbers())
-                print("self.current_char", self.current_char)
-                print("tokens", tokens)
             elif  self.current_char == '+':
                 tokens.append(Token(TT_PLUS))
                 self.advance()
@@ -112,7 +107,7 @@ class Lexer:
                 pos_start = self.pos.copy()
                 char = self.current_char
                 self.advance()
-                return [], IllegalCharError(pos_start, self.pos, '!' + char + '!')
+                return [], IllegalCharError(pos_start, self.pos, '!!!' + char + '!!!')
         return tokens, None
 
     def make_numbers(self):
@@ -133,77 +128,9 @@ class Lexer:
         else:
             return Token(TT_FLOAT, float(num_str))
 
-# NODES
-class NumberNode:
-    def __init__(self,tok):
-        self.tok = tok
-    
-    def __repr__(self):
-        return f'{self.tok}'
-
-class BinOpNode:
-    def __init__(self, left_node, op_tok, right_node):
-        self.left_node = left_node
-        self.op_tok = op_tok
-        self.right_node = right_node
-    
-    def __repr__(self):
-        return f'({self.left_node}, {self.op_tok}, {self.right_node})'
-        
-
-# PARSER
-class Parser:
-    # the video is 1 so the parser should be changed
-    def __init__(self, tokens):
-        self.tokens = tokens
-        self.tok_idx = -1
-        self.advance()
-
-    def advance(self):
-        self.tok_idx += 1
-        if self.tok_idx < len(self.tokens):
-            self.current_tok = self.tokens[self.tok_idx]
-        return self.current_tok
-
-    # parse
-    def parse(self):
-        res = self.expr()
-        return res
-    
-    def factor(self):
-        tok = self.current_tok
-
-        if tok.type in (TT_INT, TT_FLOAT):
-            self.advance()
-            return NumberNode(tok)
-
-    # 后续实现后有一次抽象
-    def term(self):
-        return self.bin_op(self.factor, (TT_MUL, TT_DIV))
-
-    def expr(self):
-        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
-
-    def bin_op(self, func, ops):
-        left = func()
-
-        while self.current_tok.type in ops:
-            op_tok = self.current_tok
-            self.advance()
-            right = func()
-            left = BinOpNode(left, op_tok, right)
-        
-        return left
-    
 
 def run(fileName, text):
-    #  Generate tokens
     lex = Lexer(fileName, text)
     tokens, error = lex.make_tokens()
-    if error: return None, error
 
-    # Generate AST
-    parser = Parser(tokens)
-    ast = parser.parse()
-
-    return ast, None
+    return tokens, error
