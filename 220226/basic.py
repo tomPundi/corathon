@@ -32,8 +32,28 @@ class IllegalSyntaxError(Error):
         super().__init__(pos_start, pos_end, 'Illegal Syntax', details)
 
 class RTError(Error):
-    def __init__(self, pos_start, pos_end, details=''):
+    def __init__(self, pos_start, pos_end, details, context):
         super().__init__(pos_start, pos_end, 'Runtime Error', details)
+        self.context = context
+
+    def as_string(self):
+        result = self.generate_traceback()
+        result += f'{self.error_name}:{self.details}\n'
+        result += '\n\n' + string_with_arrows(self.pos_start.fileTxt, self.pos_start, self.pos_end)
+        return result
+
+    def generate_traceback(self):
+        result = ''
+        pos = self.pos_start
+        ctx = self.context
+        
+        while ctx:
+            result = f'File {pos.fileName}, line {str(pos.ln + 1)}, in {ctx.display_name}\n' + result
+            # print("result", result)
+            pos = ctx.parent_entry_pos
+            ctx = ctx.parent
+        
+        return 'Traceback (most recent call last):\n' + result
 
 # POSITION
 class Position:
@@ -311,64 +331,77 @@ class Number:
     def __init__(self, value):
         self.value = value
         self.set_pos()
+        self.set_context()
     
     def set_pos(self, pos_start=None, pos_end=None):
         self.pos_start = pos_start
         self.pos_end = pos_end 
         return self
-    
+
+    def set_context(self, context=None):
+        self.context = context
+        return self
+
     def add_to(self, other):
         if isinstance(other, Number):
-            return Number(self.value + other.value), None
+            return Number(self.value + other.value).set_context(self.context), None
 
     def sub_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value - other.value), None
+            return Number(self.value - other.value).set_context(self.context), None
 
     def mul_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value * other.value), None
+            return Number(self.value * other.value).set_context(self.context), None
 
     def div_by(self, other):
         if isinstance(other, Number):
             if other.value == 0:
                 return None, RTError(
                     other.pos_start, other.pos_end,
-                    'Division by zero'
+                    'Division by zero',
+                    self.context
                 )
-            return Number(self.value / other.value), None
+            return Number(self.value / other.value).set_context(self.context), None
 
     def __repr__(self):
         return str(self.value)
 
+# CONTEXT
+class Context:
+    def __init__(self, display_name, parent=None, parent_entry_pos=None):
+        self.display_name = display_name
+        self.parent = parent
+        self.parent_entry_pos = parent_entry_pos
+        
 
 # INTERPRETER
 class Interpreter:
-    def visit(self, node):
+    def visit(self, node, context):
         # print("node", node)
         method_name = f'visit_{type(node).__name__}'
         # print("method_name", method_name)
         method = getattr(self, method_name, self.no_visit_method)
         # print("method", method)
         # print("method(node)", method(node))
-        return method(node)
+        return method(node, context)
 
-    def no_visit_method(self, node):
+    def no_visit_method(self, node, context):
         raise Exception(f'No visit_{type(node).__name__} method defined')
     
-    def visit_NumberNode(self, node):
+    def visit_NumberNode(self, node, context):
         return RTResult().success(
-            Number(node.tok.value).set_pos(node.pos_start, node.pos_end)
+            Number(node.tok.value).set_context(context).set_pos(node.pos_start, node.pos_end)
         )
-    def visit_BinOpNode(self, node):
+    def visit_BinOpNode(self, node, context):
         res = RTResult()
         # print("Found bin op node!")
         # print("node now!!!!!!!!!!!", node)
         # print("node.left_node now!!!!!!!!!!!", node.left_node)
         # print("node.left_node now!!!!!!!!!!!", node.right_node)
-        left = res.register(self.visit(node.left_node))
+        left = res.register(self.visit(node.left_node, context))
         if res.error: return res
-        right = res.register(self.visit(node.right_node))
+        right = res.register(self.visit(node.right_node, context))
         if res.error: return res
 
         if node.op_tok.type == TT_PLUS:
@@ -387,10 +420,10 @@ class Interpreter:
         else:
             return res.success(result.set_pos(node.pos_start, node.pos_end))
 
-    def visit_UnaryOpNode(self, node):
+    def visit_UnaryOpNode(self, node, context):
         res = RTResult()
         # print("Found unary op node!")
-        number = res.register(self.visit(node.node))
+        number = res.register(self.visit(node.node, context))
 
         error = None
         if node.op_tok.type == TT_MINUS:
@@ -415,6 +448,7 @@ def run(fileName, text):
 
     # Run program
     interpreter = Interpreter()
-    result = interpreter.visit(ast.node)
+    context = Context('<program>')
+    result = interpreter.visit(ast.node, context)
 
     return result.value, result.error
