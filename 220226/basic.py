@@ -30,7 +30,11 @@ class IllegalCharError(Error):
 class IllegalSyntaxError(Error):
     def __init__(self, pos_start, pos_end, details=''):
         super().__init__(pos_start, pos_end, 'Illegal Syntax', details)
-        
+
+class RTError(Error):
+    def __init__(self, pos_start, pos_end, details=''):
+        super().__init__(pos_start, pos_end, 'Runtime Error', details)
+
 # POSITION
 class Position:
     def __init__(self, idx, ln, col, fileName, fileTxt):
@@ -281,6 +285,27 @@ class Parser:
         
         return res.success(left)
 
+
+# RUNTIME RESULT
+# 主要是用来不间断查找内容
+class RTResult:
+    def __init__(self):
+        self.value = None
+        self.error = None
+    
+    def register(self, res):
+        if res.error: self.error = res.error
+        return res.value
+    
+    def success(self, value):
+        self.value = value
+        return self
+
+    def failure(self, error):
+        self.error = error
+        return self
+
+
 # VALUES
 class Number:
     def __init__(self, value):
@@ -294,19 +319,24 @@ class Number:
     
     def add_to(self, other):
         if isinstance(other, Number):
-            return Number(self.value + other.value)
+            return Number(self.value + other.value), None
 
     def sub_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value - other.value)
+            return Number(self.value - other.value), None
 
     def mul_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value * other.value)
+            return Number(self.value * other.value), None
 
     def div_by(self, other):
         if isinstance(other, Number):
-            return Number(self.value / other.value)
+            if other.value == 0:
+                return None, RTError(
+                    other.pos_start, other.pos_end,
+                    'Division by zero'
+                )
+            return Number(self.value / other.value), None
 
     def __repr__(self):
         return str(self.value)
@@ -317,47 +347,59 @@ class Interpreter:
     def visit(self, node):
         # print("node", node)
         method_name = f'visit_{type(node).__name__}'
-        print("method_name", method_name)
+        # print("method_name", method_name)
         method = getattr(self, method_name, self.no_visit_method)
-        print("method", method)
-        print("method(node)", method(node))
+        # print("method", method)
+        # print("method(node)", method(node))
         return method(node)
 
     def no_visit_method(self, node):
         raise Exception(f'No visit_{type(node).__name__} method defined')
     
     def visit_NumberNode(self, node):
-        return Number(node.tok.value).set_pos(node.pos_start, node.pos_end)
-
+        return RTResult().success(
+            Number(node.tok.value).set_pos(node.pos_start, node.pos_end)
+        )
     def visit_BinOpNode(self, node):
+        res = RTResult()
         # print("Found bin op node!")
         # print("node now!!!!!!!!!!!", node)
         # print("node.left_node now!!!!!!!!!!!", node.left_node)
         # print("node.left_node now!!!!!!!!!!!", node.right_node)
-        left = self.visit(node.left_node)
-        right = self.visit(node.right_node)
+        left = res.register(self.visit(node.left_node))
+        if res.error: return res
+        right = res.register(self.visit(node.right_node))
+        if res.error: return res
 
         if node.op_tok.type == TT_PLUS:
-            print("left now!!!!!!!!!!!", left)
-            print("right now!!!!!!!!!!!", right)
-            result = left.add_to(right)
+            # print("left now!!!!!!!!!!!", left)
+            # print("right now!!!!!!!!!!!", right)
+            result, error = left.add_to(right)
         elif node.op_tok.type == TT_MINUS:
-            result = left.sub_by(right)
+            result, error = left.sub_by(right)
         elif node.op_tok.type == TT_MUL:
-            result = left.mul_by(right)
+            result, error = left.mul_by(right)
         elif node.op_tok.type == TT_DIV:
-            result = left.div_by(right)
+            result, error = left.div_by(right)
         
-        return result.set_pos(node.pos_start, node.pos_end)
+        if error:
+            return res.failure(error)
+        else:
+            return res.success(result.set_pos(node.pos_start, node.pos_end))
 
     def visit_UnaryOpNode(self, node):
+        res = RTResult()
         # print("Found unary op node!")
-        number = self.visit(node.node)
+        number = res.register(self.visit(node.node))
 
+        error = None
         if node.op_tok.type == TT_MINUS:
-            number = number.mul_by(Number(-1))
-
-        return number.set_pos(node.pos_start, node.pos_end)
+            number, error = number.mul_by(Number(-1))
+        
+        if error:
+            return res.failure(error)
+        else:
+            return res.success(number.set_pos(node.pos_start, node.pos_end))
 
 
 def run(fileName, text):
@@ -375,4 +417,4 @@ def run(fileName, text):
     interpreter = Interpreter()
     result = interpreter.visit(ast.node)
 
-    return result, None
+    return result.value, result.error
