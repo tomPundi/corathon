@@ -102,11 +102,11 @@ class Lexer:
             if self.current_char in ' \t':
                 self.advance()
             elif self.current_char in DIGITS:
-                # print("self.current_char", self.current_char)
-                # print("tokens", tokens)
+                print("self.current_char", self.current_char)
+                print("tokens", tokens)
                 tokens.append(self.make_numbers())
-                # print("self.current_char", self.current_char)
-                # print("tokens", tokens)
+                print("self.current_char", self.current_char)
+                print("tokens", tokens)
             elif  self.current_char == '+':
                 tokens.append(Token(TT_PLUS, pos_start=self.pos))
                 self.advance()
@@ -273,29 +273,6 @@ class Parser:
         
         return res.success(left)
     
-# INTERPRETER
-class Interpreter:
-    def visit(self, node):
-        method_name = f'visit_{type(node).__name__}'
-        method = getattr(self, method_name, self.no_visit_method)
-        return method(node)
-    
-    def no_visit_method(self, node):
-        raise Exception(f'No visit_{type(node).__name__} method defined')
-    
-    def visit_NumberNode(self, node):
-        print("Found number node!")
-
-    def visit_BinOpNode(self, node):
-        print("Found bin op node!")
-        self.visit(node.left_node)
-        self.visit(node.right_node)
-
-    def visit_UnaryOpNode(self, node):
-        print("Found unary op node!")
-        self.visit(node.node)
-
-
 
 def run(fileName, text):
     #  Generate tokens
@@ -306,10 +283,5 @@ def run(fileName, text):
     # Generate AST
     parser = Parser(tokens)
     ast = parser.parse()
-    if ast.error: return None, ast.error
 
-    # Run program
-    interpreter = Interpreter()
-    interpreter.visit(ast.node)
-
-    return None, None
+    return ast.node, ast.error
