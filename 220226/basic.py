@@ -1,3 +1,4 @@
+from strings_with_arrows import * 
 
 # CONSTANT
 
@@ -14,11 +15,18 @@ class Error:
     def as_string(self):
         result = f'{self.error_name}:{self.details}\n'
         result += f'File {self.pos_start.fileName}, line {self.pos_start.ln + 1}'
+        # 下面一行是直接复制他的实现方法，可以后续看
+        result += '\n\n' + string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+
         return result
 
 class IllegalCharError(Error):
     def __init__(self, pos_start, pos_end, details):
         super().__init__(pos_start, pos_end, 'Illegal Character', details)
+
+class IllegalSyntaxError(Error):
+    def __init__(self, pos_start, pos_end, details=''):
+        super().__init__(pos_start, pos_end, 'Illegal Syntax', details)
         
 # POSITION
 class Position:
@@ -55,9 +63,15 @@ TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 
 class Token:
-    def __init__(self, type_, value=None):
+    def __init__(self, type_, value=None, pos_start=None, pos_end=None):
         self.type = type_
-        self.value = value 
+        self.value = value
+        if pos_start:
+            self.pos_start = pos_start.copy()
+            self.pos_end = pos_start.copy()
+            self.pos_end.advance()
+        if pos_end:
+            self.pos_end = pos_end
     
     def __repr__(self):
         if self.value: return f'{self.type}:{self.value}'
