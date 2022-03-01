@@ -266,12 +266,13 @@ class ParserResult:
     def __init__(self):
         self.error = None
         self.node = None
+    
+    def register_advance(self):
+        pass
 
     def register(self, res):
-        if isinstance(res, ParserResult):
-            if res.error: self.error = res.error
-            return res.node 
-        return res
+        if res.error: self.error = res.error
+        return res.node 
 
     def success(self, node):
         self.node = node
@@ -303,7 +304,6 @@ class Parser:
             res.failure(IllegalSyntaxError(
             # tok.pos_start, tok.pos_end, "Expect INT or FLOAT!"
             self.current_tok.pos_start, self.current_tok.pos_end, "Expect INT or FLOAT!"
-
         ))
         return res
 
@@ -311,17 +311,25 @@ class Parser:
         res = ParserResult()
         tok = self.current_tok
         if tok.type in (TT_INT, TT_FLOAT):
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             return res.success(NumberNode(tok))
         elif tok.type == TT_IDENTIFIER:
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             return res.success(VarAccessNode(tok))
         elif tok.type == TT_LPAREN:
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             expr = res.register(self.expr())
             if res.error: return res
             if self.current_tok.type == TT_RPAREN:
-                res.register(self.advance())
+                # res.register(self.advance())
+                res.register_advance()
+                self.advance()
                 return res.success(expr)
             else:
                 return res.failure(IllegalSyntaxError(
@@ -341,7 +349,9 @@ class Parser:
         tok = self.current_tok
 
         if tok.type in (TT_PLUS, TT_MINUS):
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             factor = res.register(self.factor())
             if res.error: return res 
             return res.success(UnaryOpNode(tok, factor))
@@ -356,20 +366,26 @@ class Parser:
         res = ParserResult()
 
         if self.current_tok.matches(TT_KEYWORD, 'var'):
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             if self.current_tok.type != TT_IDENTIFIER:
                 return res.failure(IllegalSyntaxError(
 					self.current_tok.pos_start, self.current_tok.pos_end,
 					"Expected identifier"
 				))
             var_name = self.current_tok
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             if self.current_tok.type != TT_EQ:
                 return res.failure(IllegalSyntaxError(
 					self.current_tok.pos_start, self.current_tok.pos_end,
 					"Expected '='"
 				))
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             expr = res.register(self.expr())
             if res.error: return res
             return res.success(VarAssignNode(var_name, expr))
@@ -386,7 +402,9 @@ class Parser:
 
         while self.current_tok.type in ops:
             op_tok = self.current_tok
-            res.register(self.advance())
+            # res.register(self.advance())
+            res.register_advance()
+            self.advance()
             right = res.register(func_b())
             if res.error: return res
             left = BinOpNode(left, op_tok, right)
@@ -489,12 +507,8 @@ class SymbolTable:
 # INTERPRETER
 class Interpreter:
     def visit(self, node, context):
-        # print("node", node)
         method_name = f'visit_{type(node).__name__}'
-        # print("method_name", method_name)
         method = getattr(self, method_name, self.no_visit_method)
-        # print("method", method)
-        # print("method(node)", method(node))
         return method(node, context)
 
     def no_visit_method(self, node, context):
