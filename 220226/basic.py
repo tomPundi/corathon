@@ -266,11 +266,13 @@ class ParserResult:
     def __init__(self):
         self.error = None
         self.node = None
+        self.advance_count = 0
     
     def register_advance(self):
-        pass
+        self.advance_count += 1
 
     def register(self, res):
+        self.advance_count += res.advance_count
         if res.error: self.error = res.error
         return res.node 
 
@@ -279,7 +281,8 @@ class ParserResult:
         return self
 
     def failure(self, error):
-        self.error = error
+        if not self.error or self.advance_count == 0:
+            self.error = error
         return self
 
 
@@ -338,7 +341,7 @@ class Parser:
 				))
 
         return res.failure(IllegalSyntaxError(
-            tok.pos_start, tok.pos_end, "Expect INT or FLOAT!"
+            tok.pos_start, tok.pos_end, "Expect INT, FLOAT, IDENTIFIER, '+', '-' or '('!"
         ))
     
     def power(self):
@@ -390,7 +393,13 @@ class Parser:
             if res.error: return res
             return res.success(VarAssignNode(var_name, expr))
 
-        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+        node = res.register(self.bin_op(self.term, (TT_PLUS, TT_MINUS))) 
+        if res.error: 
+            return res.failure(IllegalSyntaxError(
+            self.current_tok.pos_start, self.current_tok.pos_end, 
+            "Expect 'var', INT, FLOAT, IDENTIFIER, '+', '-' or '('!"
+        ))
+        return res.success(node)
 
     def bin_op(self, func_a, ops, func_b=None):
         if func_b == None:
