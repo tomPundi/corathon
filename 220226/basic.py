@@ -483,6 +483,12 @@ class Number:
         if isinstance(other, Number):
             return Number(self.value ** other.value).set_context(self.context), None
 
+    def copy(self):
+        copy = Number(self.value)
+        copy.set_pos(self.pos_start, self.pos_end)
+        copy.set_context(self.context)
+        return copy
+        
     def __repr__(self):
         return str(self.value)
 
@@ -534,6 +540,7 @@ class Interpreter:
                 f"'{var_name}' is not defined",
                 context
             ))
+        value = value.copy().set_pos(node.pos_start, node.pos_end)
         return res.success(value)
 
     def visit_VarAssignNode(self, node, context):
