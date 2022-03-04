@@ -5,20 +5,15 @@ comp-expr   : NOT comp-expr
 arith-expr  : term((PLUS|MINUS) term)*
 term        : factor ((MUL|DIV)  factor)*
 factor      : (PLUS|MINUS) factor
-power       : call (POW factor)*
-call        : atom (LPAREN (IDENTIFIER (COMMA IDENTIFIER)*)? RPAREN)?
+power       : atom (POW factor)*
 atom        : INT|FLOAT|IDENTIFIER
             : LPAREN OP RPAREN
             : if-expr
             : for-expr
             : while-expr
-            : func-def
 if-expr     : KEYWORD:IF expr KEYWORD:THEN expr
             : (KEYWORD:ELIF expr KEYWORD:THEN expr)*
             : (KEYWORD:ELSE expr)?
 for-expr    : KEYWORD:FOR IDENTIFIER EQ expr KEYWORD:TO expr
             : (KEYWORD:STEP expr)? KEYWORD:THEN expr
 while-expr  : KEYWORD:WHILE expr KEYWORD:THEN expr
-func-def    : KEYWORD:FUN IDENTIFIER?
-            : LPAREN (IDENTIFIER (COMMA IDENTIFIER)*)? RPAREN
-            : ARROW expr
