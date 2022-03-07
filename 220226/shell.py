@@ -7,7 +7,7 @@ while True:
 
     if error: 
         print(error.as_string())
-    elif result:
+    elif result: 
         if len(result.elements) == 1:
             print(repr(result.elements[0]))
         else:  
