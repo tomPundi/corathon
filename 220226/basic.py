@@ -2,6 +2,7 @@ from ast import Call, Num
 from distutils.log import error
 from hashlib import new
 from lib2to3.pgen2 import token
+from pdb import post_mortem
 from tkinter import E, N, NONE
 from unittest import result
 from strings_with_arrows import * 
@@ -115,7 +116,7 @@ TT_LTE    = 'LTE'
 TT_GTE    = 'GTE'
 TT_COMMA  = 'COMMA'
 TT_ARROW  = 'ARROW'
-
+TT_NEWLINE  = 'NEWLINE'
 
 
 KEYWORDS = [
@@ -131,7 +132,8 @@ KEYWORDS = [
     'to',
     'step',
     'while',
-    'fun'
+    'fun',
+    'end'
 ]
 
 
@@ -180,6 +182,9 @@ class Lexer:
                 tokens.append(self.make_numbers())
                 # print("self.current_char", self.current_char)
                 # print("tokens", tokens)
+            elif  self.current_char in ';\n':
+                tokens.append(Token(TT_NEWLINE, pos_start=self.pos))
+                self.advance()
             elif  self.current_char in LETTERS:
                 tokens.append(self.make_identifiers())
             elif  self.current_char == '"':
@@ -476,15 +481,25 @@ class ParserResult:
     def __init__(self):
         self.error = None
         self.node = None
+        self.last_register_advance_count = 0
         self.advance_count = 0
-    
+        self.to_reverse_count = 0
+
     def register_advance(self):
+        self.last_register_advance_count = 1
         self.advance_count += 1
 
     def register(self, res):
+        self.last_register_advance_count = res.advance_count
         self.advance_count += res.advance_count
         if res.error: self.error = res.error
         return res.node 
+
+    def try_register(self, res):
+        if res.error:
+            self.to_reverse_count = res.advance_count
+            return None
+        return res.register(res)
 
     def success(self, node):
         self.node = node
@@ -504,15 +519,29 @@ class Parser:
         self.tok_idx = -1
         self.advance()
 
+    # def advance(self):
+    #     self.tok_idx += 1
+    #     if self.tok_idx < len(self.tokens):
+    #         self.current_tok = self.tokens[self.tok_idx]
+    #     return self.current_tok
     def advance(self):
         self.tok_idx += 1
-        if self.tok_idx < len(self.tokens):
-            self.current_tok = self.tokens[self.tok_idx]
+        self.update_current_tok()
+        return self.current_tok 
+    
+    def reverse(self, amount=1):
+        self.tok_idx -= amount 
+        self.update_current_tok()
         return self.current_tok
+
+    def update_current_tok(self):
+        if self.tok_idx >= 0 and self.tok_idx < len(self.tokens):
+            self.current_tok = self.tokens[self.tok_idx]
+        
 
     # parse
     def parse(self):
-        res = self.expr()
+        res = self.statements()
         if not res.error and self.current_tok.type != TT_EOF:
             res.failure(IllegalSyntaxError(
             # tok.pos_start, tok.pos_end, "Expect INT or FLOAT!"
@@ -520,6 +549,45 @@ class Parser:
 			"Expected '+', '-', '*', '/', '^', '==', '!=', '<', '>', <=', '>=', 'AND' or 'OR'"
         ))
         return res
+
+    def statements(self):
+        res = ParserResult()
+        statements = []
+        pos_start = self.current_tok.pos_start.copy()
+
+        while self.current_tok.type == TT_NEWLINE:
+            res.register_advance()
+            self.advance()
+
+        statement = res.register(self.expr())
+        if res.error: return res 
+        statements.append(statement)
+
+        more_statements = True
+
+        while True:
+            newline_count = 0
+            while self.current_tok.type == TT_NEWLINE:
+                res.register_advance()
+                self.advance()
+                newline_count += 1
+            if newline_count == 0:
+                more_statements = False
+            
+            if not more_statements: break
+            statement = res.try_register(self.expr())
+            if not statement:
+                self.reverse(res.to_reverse_count)
+                more_statements = False 
+                continue 
+            statements.append(statement)
+
+        return res.success(ListNode(
+            statements,
+            pos_start,
+            self.current_tok.pos_end.copy()
+        ))
+
 
     def if_expr(self):
         res = ParserResult()
