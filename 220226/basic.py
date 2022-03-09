@@ -179,6 +179,8 @@ class Lexer:
         while self.current_char != None:
             if self.current_char in ' \t':
                 self.advance()
+            elif  self.current_char == '#':
+                self.skip_comment()
             elif self.current_char in DIGITS:
                 # print("self.current_char", self.current_char)
                 # print("tokens", tokens)
@@ -356,6 +358,15 @@ class Lexer:
             tok_type = TT_GTE
 
         return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+    def skip_comment(self):
+        self.advance()
+
+        while self.current_char != '\n':
+            self.advance()
+
+        self.advance()
+
 
 # NODES
 class NumberNode:
@@ -1843,6 +1854,21 @@ class BuiltInFunction(BaseFunction):
         return RTResult().success(Number.null)
     execute_extend.arg_names = ['listA', 'listB']
 
+
+    def execute_len(self, exec_ctx):
+        list_ = exec_ctx.symbol_table.get("fn")
+
+        if not isinstance(list_, List):
+            return RTResult().failure(RTError(
+                self.pos_start, self.pos_end,
+                "Argument must be list",
+                exec_ctx
+            ))
+
+        return RTResult().success(Number(len(list_.elements)))
+    execute_len.arg_names = ['list']
+
+
     def execute_run(self, exec_ctx):
         fn = exec_ctx.symbol_table.get("fn")
 
@@ -1890,6 +1916,9 @@ BuiltInFunction.is_function = BuiltInFunction("is_function")
 BuiltInFunction.append      = BuiltInFunction("append")
 BuiltInFunction.pop         = BuiltInFunction("pop")
 BuiltInFunction.extend      = BuiltInFunction("extend")
+BuiltInFunction.run         = BuiltInFunction("run")
+BuiltInFunction.len         = BuiltInFunction("len")
+
 
 
 # CONTEXT
@@ -2204,7 +2233,9 @@ global_symbol_table.set('is_function',  BuiltInFunction.is_function)
 global_symbol_table.set('append',       BuiltInFunction.append)
 global_symbol_table.set('pop',          BuiltInFunction.pop)
 global_symbol_table.set('extend',       BuiltInFunction.extend)
-
+global_symbol_table.set('extend',       BuiltInFunction.extend)
+global_symbol_table.set('run',          BuiltInFunction.run)
+global_symbol_table.set('len',          BuiltInFunction.len)
 
 
 def run(fileName, text):
